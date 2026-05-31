@@ -1048,7 +1048,26 @@ function renderProducts() {
   `).join('') || '<div style="color:var(--text3);padding:20px;text-align:center;">No products found</div>';
 }
 
-function filterProducts() { renderProducts(); }
+function filterProducts() {
+  const search = document.getElementById('prod-search')?.value?.trim()||'';
+  if (!search) { renderProducts(); return; }
+  const products = DB.get('products')||[];
+  // Try exact barcode match first
+  const match = products.find(p=>p.barcode===search);
+  if (match) {
+    if(match.qty>0) {
+      addToCart(match.id);
+      document.getElementById('prod-search').value='';
+      document.getElementById('prod-search').focus();
+    } else {
+      alert('❌ '+match.name+' is out of stock!');
+      document.getElementById('prod-search').value='';
+    }
+    return;
+  }
+  // Otherwise filter by name
+  renderProducts();
+}
 
 function addToCart(pid) {
   const products=DB.get('products')||[];
