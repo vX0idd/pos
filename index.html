@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   const { createClient } = supabase;
   const SUPABASE_URL = 'https://cbkcxztdkrwhhhyuxrgw.supabase.co';
@@ -664,62 +664,27 @@ tr:hover td { background:var(--bg3); color:var(--text); }
 
 <script>
 // ==================== DATA STORE ====================
-// Hybrid: localStorage for instant speed + Supabase for cloud sync
 const DB = {
-  // Table names that have dedicated Supabase tables
-  _tables: ['products','customers','sales','expenses','purchases'],
-
-  get(k) {
-    try { return JSON.parse(localStorage.getItem('stylepos_'+k)||'null'); }
-    catch(e){ return null; }
+  async get(k) { 
+    try { 
+      const {data} = await supabaseClient
+        .from('settings')
+        .select('value')
+        .eq('key', k)
+        .single();
+      return data ? JSON.parse(data.value) : null;
+    } catch(e){return null;} 
   },
-
-  set(k, v) {
-    localStorage.setItem('stylepos_'+k, JSON.stringify(v));
-    this._syncToSupabase(k, v);
+  async set(k,v) { 
+    await supabaseClient
+      .from('settings')
+      .upsert({key: k, value: JSON.stringify(v)});
   },
-
-  push(k, item) {
-    const arr = this.get(k)||[];
-    arr.push(item);
-    this.set(k, arr);
-    return arr;
-  },
-
-  // Background sync to Supabase - won't break the app if it fails
-  async _syncToSupabase(k, v) {
-    try {
-      if (k === 'settings') {
-        // Settings stored as key-value rows
-        await supabaseClient.from('settings').upsert({key: k, value: JSON.stringify(v)});
-      } else if (this._tables.includes(k)) {
-        // For array tables: delete all and re-insert
-        // Using a sync flag to avoid loops
-        if (!v || !Array.isArray(v)) return;
-        await supabaseClient.from(k).delete().neq('id', '________none________');
-        if (v.length > 0) await supabaseClient.from(k).insert(v);
-      }
-    } catch(e) {
-      // Silent fail - localStorage still has data
-    }
-  },
-
-  // Pull fresh data from Supabase (called on login)
-  async syncFromSupabase() {
-    try {
-      for (const table of this._tables) {
-        const {data, error} = await supabaseClient.from(table).select('*');
-        if (!error && data && data.length > 0) {
-          localStorage.setItem('stylepos_'+table, JSON.stringify(data));
-        }
-      }
-      // Sync settings
-      const {data} = await supabaseClient.from('settings').select('*').eq('key','settings').single();
-      if (data) localStorage.setItem('stylepos_settings', data.value);
-      console.log('✅ Synced from Supabase');
-    } catch(e) {
-      console.log('⚠️ Offline mode - using local data');
-    }
+  async push(k,item) { 
+    const arr=await this.get(k)||[]; 
+    arr.push(item); 
+    await this.set(k,arr); 
+    return arr; 
   }
 };
 
@@ -798,7 +763,7 @@ function selectRole(r) {
   document.getElementById('role-owner').classList.toggle('selected',r==='owner');
   document.getElementById('role-cashier').classList.toggle('selected',r==='cashier');
 }
-async function doLogin() {
+function doLogin() {
   const u = document.getElementById('login-user').value.trim();
   const p = document.getElementById('login-pass').value;
   settings = DB.get('settings') || settings;
@@ -817,10 +782,6 @@ async function doLogin() {
   document.getElementById('user-role-display').textContent = role.charAt(0).toUpperCase()+role.slice(1);
   buildNav();
   navigate('dashboard');
-  // Sync latest data from Supabase in background
-  await DB.syncFromSupabase();
-  // Refresh dashboard with synced data
-  if (currentRole==='owner') renderDashboard();
 }
 function logout() {
   currentUser=null; cart=[];
@@ -1022,18 +983,7 @@ function renderProducts() {
   `).join('') || '<div style="color:var(--text3);padding:20px;text-align:center;">No products found</div>';
 }
 
-function filterProducts() {
-  const search = document.getElementById('prod-search')?.value?.trim();
-  if (!search) { renderProducts(); return; }
-  const products = DB.get('products')||[];
-  const match = products.find(p=>p.barcode===search);
-  if (match && match.qty > 0) {
-    addToCart(match.id);
-    document.getElementById('prod-search').value='';
-    return;
-  }
-  renderProducts();
-}
+function filterProducts() { renderProducts(); }
 
 function addToCart(pid) {
   const products=DB.get('products')||[];
@@ -1368,13 +1318,15 @@ function generateBarcode() {
 }
 
 function printBarcode() {
-  const copies=parseInt(document.getElementById('bc-copies')?.value||1);
-  const svg=document.getElementById('barcode-svg');
-  const label=document.getElementById('bc-label')?.textContent||'';
-  if(!svg) return;
-  const unit=`<div style="display:inline-block;margin:4px;text-align:center;">${svg.outerHTML}<div style="font-size:10px;font-family:monospace;">${label}</div></div>`;
-  const win=window.open('','_blank','width=400,height=400');
-  win.document.write(`<html><head><style>body{margin:8px;}</style></head><body>${unit.repeat(copies)}<script>window.onload=()=>window.print()<\/script></body></html>`);
+  const sel=document.getElementById('bc-product');
+  const products=DB.get('products')||[];
+  const p=products.find(x=>x.id===sel.value);
+  if(!p) return;
+  const s=DB.get('settings')||settings;
+  const copies=parseInt(document.getElementById('bc-copies').value)||1;
+  const win=window.open('','_blank','width=400,height=600');
+  const sticker=`<div class="sticker"><div class="shopname">${s.shopName||'StylePOS'}</div><div class="pname">${p.name}</div><div class="pdetails">Size: ${p.size||'-'} | Color: ${p.color||'-'}</div><div class="pcat">${p.cat||''}</div><svg class="bc"></svg><div class="pprice">Rs. ${p.price}</div></div>`;
+  win.document.write(`<html><head><style>body{font-family:monospace;margin:0;padding:10px;} .sticker{display:inline-block;border:1px dashed #999;padding:8px;margin:4px;text-align:center;width:200px;vertical-align:top;} .shopname{font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:3px;margin-bottom:4px;} .pname{font-size:11px;font-weight:bold;margin-bottom:2px;word-break:break-word;} .pdetails{font-size:10px;color:#333;margin-bottom:2px;} .pcat{font-size:10px;color:#666;margin-bottom:4px;} .pprice{font-size:14px;font-weight:bold;margin-top:4px;} @media print{body{margin:0;}}</style><script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"><\/script></head><body>${sticker.repeat(copies)}<script>document.querySelectorAll('.bc').forEach(el=>JsBarcode(el,'${p.barcode}',{width:1.5,height:40,displayValue:true,fontSize:10}));window.onload=()=>window.print();<\/script></body></html>`);
   win.document.close();
 }
 
