@@ -665,26 +665,48 @@ tr:hover td { background:var(--bg3); color:var(--text); }
 <script>
 // ==================== DATA STORE ====================
 const DB = {
-  async get(k) { 
-    try { 
-      const {data} = await supabaseClient
-        .from('settings')
-        .select('value')
-        .eq('key', k)
-        .single();
-      return data ? JSON.parse(data.value) : null;
-    } catch(e){return null;} 
+  get(k) {
+    try {
+      const val = localStorage.getItem('stylepos_'+k);
+      if (!val || val==='null' || val==='undefined') return null;
+      return JSON.parse(val);
+    } catch(e) { return null; }
   },
-  async set(k,v) { 
-    await supabaseClient
-      .from('settings')
-      .upsert({key: k, value: JSON.stringify(v)});
+  set(k, v) {
+    try {
+      localStorage.setItem('stylepos_'+k, JSON.stringify(v));
+      this._sync(k, v);
+    } catch(e) {}
   },
-  async push(k,item) { 
-    const arr=await this.get(k)||[]; 
-    arr.push(item); 
-    await this.set(k,arr); 
-    return arr; 
+  push(k, item) {
+    let arr = this.get(k);
+    if (!Array.isArray(arr)) arr = [];
+    arr.push(item);
+    this.set(k, arr);
+    return arr;
+  },
+  async _sync(k, v) {
+    try {
+      if (k==='settings') {
+        await supabaseClient.from('settings').upsert({key:k, value:JSON.stringify(v)});
+      } else if (['products','customers','sales','expenses','purchases'].includes(k)) {
+        if (!Array.isArray(v)) return;
+        await supabaseClient.from(k).delete().neq('id','__none__');
+        if (v.length>0) await supabaseClient.from(k).insert(v);
+      }
+    } catch(e) {}
+  },
+  async syncFromSupabase() {
+    try {
+      for (const t of ['products','customers','sales','expenses','purchases']) {
+        const {data,error} = await supabaseClient.from(t).select('*');
+        if (!error && Array.isArray(data) && data.length>0)
+          localStorage.setItem('stylepos_'+t, JSON.stringify(data));
+      }
+      const {data} = await supabaseClient.from('settings').select('value').eq('key','settings').single();
+      if (data && data.value) localStorage.setItem('stylepos_settings', data.value);
+      console.log('✅ Synced from Supabase');
+    } catch(e) { console.log('⚠️ Offline mode'); }
   }
 };
 
