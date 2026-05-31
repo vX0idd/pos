@@ -665,9 +665,27 @@ tr:hover td { background:var(--bg3); color:var(--text); }
 <script>
 // ==================== DATA STORE ====================
 const DB = {
-  get(k) { try { return JSON.parse(localStorage.getItem('stylepos_'+k)||'null'); } catch(e){return null;} },
-  set(k,v) { localStorage.setItem('stylepos_'+k,JSON.stringify(v)); },
-  push(k,item) { const arr=this.get(k)||[]; arr.push(item); this.set(k,arr); return arr; }
+  async get(k) { 
+    try { 
+      const {data} = await supabaseClient
+        .from('settings')
+        .select('value')
+        .eq('key', k)
+        .single();
+      return data ? JSON.parse(data.value) : null;
+    } catch(e){return null;} 
+  },
+  async set(k,v) { 
+    await supabaseClient
+      .from('settings')
+      .upsert({key: k, value: JSON.stringify(v)});
+  },
+  async push(k,item) { 
+    const arr=await this.get(k)||[]; 
+    arr.push(item); 
+    await this.set(k,arr); 
+    return arr; 
+  }
 };
 
 // ==================== STATE ====================
