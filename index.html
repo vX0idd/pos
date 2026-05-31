@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   const { createClient } = supabase;
   const SUPABASE_URL = 'https://cbkcxztdkrwhhhyuxrgw.supabase.co';
@@ -452,14 +452,9 @@ tr:hover td { background:var(--bg3); color:var(--text); }
         <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
       </div>
       <div class="section-card">
-        <h3>📱 WhatsApp & Email</h3>
+        <h3>📱 WhatsApp</h3>
         <div class="form-group"><label>Owner WhatsApp (with country code)</label><input type="text" id="set-waowner" placeholder="+94771234567"></div>
-        <div class="form-group"><label>Owner Email</label><input type="text" id="set-email" placeholder="owner@email.com"></div>
-        <div class="form-group"><label>Send Bill to Customer via WhatsApp</label><select id="set-wa-bill"><option>Yes - After every sale</option><option>No</option><option>Ask each time</option></select></div>
-        <div class="form-group"><label>Daily Report Time</label><input type="time" id="set-report-time" value="22:00"></div>
-        <div class="alert alert-info" style="margin-top:8px;">
-          📲 WhatsApp messages open in WhatsApp Web/App. For full automation, use WhatsApp Business API (Twilio, Wati etc.)
-        </div>
+        <div class="form-group"><label>Send Bill to Customer via WhatsApp</label><select id="set-wa-bill"><option value="ask">Ask each time</option><option value="yes">Yes - After every sale</option><option value="no">No</option></select></div>
         <button class="btn btn-success" onclick="testWhatsApp()">📲 Test WhatsApp</button>
       </div>
       <div class="section-card">
@@ -470,12 +465,26 @@ tr:hover td { background:var(--bg3); color:var(--text); }
         <button class="btn btn-primary" onclick="saveUsers()">💾 Update Passwords</button>
       </div>
       <div class="section-card">
-        <h3>🖨️ Printer Settings</h3>
-        <div class="form-group"><label>Thermal Printer Width</label><select><option>58mm</option><option selected>80mm</option></select></div>
+        <h3>🖨️ Printer & Barcode Settings</h3>
+        <div class="form-group"><label>Thermal Receipt Width</label>
+          <select id="set-thermal-size">
+            <option value="58">58mm (Small)</option>
+            <option value="80" selected>80mm (Standard)</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Barcode Sticker Size</label>
+          <select id="set-barcode-size">
+            <option value="small">Small (150px)</option>
+            <option value="medium" selected>Medium (200px)</option>
+            <option value="large">Large (260px)</option>
+          </select>
+        </div>
         <div class="form-group"><label>Receipt Header Message</label><input type="text" id="set-receipt-msg" value="Thank you for shopping with us!"></div>
         <div class="form-group"><label>Receipt Footer Message</label><input type="text" id="set-receipt-footer" value="Visit again! | No exchange after 7 days"></div>
-        <div class="form-group"><label>Show Points in Bill</label><select><option>Yes</option><option>No</option></select></div>
-        <button class="btn btn-ghost" onclick="printTestReceipt()">🖨️ Test Print</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-ghost" onclick="printTestReceipt()">🖨️ Test Receipt</button>
+          <button class="btn btn-ghost" onclick="navigate('stock');setTimeout(()=>showModal('barcode-modal'),300)">🔲 Test Barcode</button>
+        </div>
       </div>
     </div>
   </div>
@@ -514,6 +523,40 @@ tr:hover td { background:var(--bg3); color:var(--text); }
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="hideModal('add-product-modal')">Cancel</button>
       <button class="btn btn-primary" onclick="addProduct()">✅ Add Product</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT PRODUCT -->
+<div class="modal-overlay" id="edit-product-modal">
+  <div class="modal">
+    <h3>✏️ Edit Product</h3>
+    <input type="hidden" id="ep-id">
+    <div class="form-row">
+      <div class="form-group"><label>Product Name *</label><input type="text" id="ep-name"></div>
+      <div class="form-group"><label>Category</label>
+        <select id="ep-cat">
+          <option>SHIRT</option><option>TSHIRT</option><option>JEANS</option>
+          <option>SHORTS</option><option>INNERS</option><option>ACCESSORIES</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Size</label><input type="text" id="ep-size"></div>
+      <div class="form-group"><label>Color</label><input type="text" id="ep-color"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Cost Price (Rs.)</label><input type="number" id="ep-cost"></div>
+      <div class="form-group"><label>Selling Price (Rs.)</label><input type="number" id="ep-price"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Stock Qty</label><input type="number" id="ep-qty"></div>
+      <div class="form-group"><label>Low Stock Alert</label><input type="number" id="ep-alert"></div>
+    </div>
+    <div class="form-group"><label>Barcode</label><input type="text" id="ep-barcode"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="hideModal('edit-product-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditProduct()">💾 Save Changes</button>
     </div>
   </div>
 </div>
@@ -818,7 +861,7 @@ const ALL_NAV = [
   {id:'stock',icon:'📦',label:'Stock',role:'owner'},
   {id:'purchases',icon:'🛒',label:'Purchases',role:'owner'},
   {id:'customers',icon:'👥',label:'Customers',role:'both'},
-  {id:'expenses',icon:'💸',label:'Expenses',role:'owner'},
+  {id:'expenses',icon:'💸',label:'Expenses',role:'both'},
   {id:'reports',icon:'📈',label:'Reports',role:'owner'},
   {id:'settings',icon:'⚙️',label:'Settings',role:'owner'},
 ];
@@ -1171,15 +1214,18 @@ function checkout(paymentMethod) {
 
 // ==================== RECEIPT ====================
 function showReceiptModal(bill) {
-  const s=DB.get('settings')||settings; const cur=s.currency||'Rs.';
+  const s=DB.get('settings')||settings;
+  const cur=s.currency||'Rs.';
   const html=generateReceiptHTML(bill,s,cur);
   document.getElementById('receipt-content').innerHTML=html;
   showModal('receipt-modal');
-  // Auto send WA to customer
-  if(s.waBill!=='No'&&bill.customerPhone) {
-    setTimeout(()=>{
-      if(confirm(`Send bill to ${bill.customer} via WhatsApp?`)) sendBillWA();
-    },500);
+  if(bill.customerPhone) {
+    const waBill=s.waBill||'ask';
+    if(waBill==='yes') {
+      setTimeout(()=>sendBillWA(),600);
+    } else if(waBill==='ask') {
+      setTimeout(()=>{ if(confirm(`Send bill to ${bill.customer} via WhatsApp?`)) sendBillWA(); },500);
+    }
   }
 }
 
@@ -1228,8 +1274,19 @@ function generateReceiptHTML(bill, s, cur) {
 function printReceipt() {
   const el=document.getElementById('thermal-receipt');
   if(!el) return;
-  const win=window.open('','_blank','width=350,height=600');
-  win.document.write(`<html><head><style>body{font-family:monospace;margin:0;padding:0;} .receipt{padding:10px;} @media print{body{margin:0;}}</style></head><body>${el.outerHTML}<script>window.onload=()=>window.print()<\/script></body></html>`);
+  const s=DB.get('settings')||settings;
+  const w=s.thermalSize==='58'?'220px':'300px';
+  const win=window.open('','_blank','width=400,height=700');
+  win.document.write(`<html><head><style>
+    body{font-family:'Courier New',monospace;margin:0;padding:0;}
+    .receipt{padding:8px;width:${w};margin:0 auto;font-size:${s.thermalSize==='58'?'10':'12'}px;line-height:1.8;}
+    .receipt-shop{text-align:center;font-size:${s.thermalSize==='58'?'13':'15'}px;font-weight:bold;text-transform:uppercase;letter-spacing:2px;margin-bottom:4px;}
+    .receipt-divider{border-top:1px dashed #000;margin:6px 0;}
+    .receipt-item{display:flex;justify-content:space-between;gap:4px;}
+    .receipt-total{font-weight:bold;}
+    .receipt-footer{text-align:center;font-size:10px;margin-top:8px;}
+    @media print{body{margin:0;} @page{margin:2mm;}}
+  </style></head><body>${el.outerHTML}<script>window.onload=()=>window.print()<\/script></body></html>`);
   win.document.close();
 }
 
@@ -1264,6 +1321,7 @@ function renderStockTable() {
       <td><span class="badge badge-${p.qty===0?'red':p.qty<=p.alert?'amber':'green'}">${p.qty===0?'Out of Stock':p.qty<=p.alert?'Low Stock':'In Stock'}</span></td>
       <td>
         <button class="btn btn-ghost btn-sm" onclick="editProductQty('${p.id}')">+Stock</button>
+        <button class="btn btn-ghost btn-sm" onclick="editProduct('${p.id}')" style="color:var(--cyan);">✏️Edit</button>
         <button class="btn btn-ghost btn-sm" onclick="deleteProduct('${p.id}')" style="color:var(--red);">Del</button>
       </td>
     </tr>
@@ -1319,6 +1377,46 @@ function deleteProduct(id) {
   renderStockTable();
 }
 
+function editProduct(id) {
+  const products=DB.get('products')||[];
+  const p=products.find(x=>x.id===id);
+  if(!p) return;
+  document.getElementById('ep-id').value=p.id;
+  document.getElementById('ep-name').value=p.name;
+  document.getElementById('ep-cat').value=p.cat;
+  document.getElementById('ep-size').value=p.size||'';
+  document.getElementById('ep-color').value=p.color||'';
+  document.getElementById('ep-cost').value=p.cost||0;
+  document.getElementById('ep-price').value=p.price;
+  document.getElementById('ep-qty').value=p.qty;
+  document.getElementById('ep-alert').value=p.alert||5;
+  document.getElementById('ep-barcode').value=p.barcode||'';
+  showModal('edit-product-modal');
+}
+
+function saveEditProduct() {
+  const id=document.getElementById('ep-id').value;
+  const products=DB.get('products')||[];
+  const idx=products.findIndex(x=>x.id===id);
+  if(idx===-1) return;
+  products[idx]={
+    ...products[idx],
+    name:document.getElementById('ep-name').value.trim(),
+    cat:document.getElementById('ep-cat').value,
+    size:document.getElementById('ep-size').value,
+    color:document.getElementById('ep-color').value,
+    cost:parseFloat(document.getElementById('ep-cost').value)||0,
+    price:parseFloat(document.getElementById('ep-price').value)||products[idx].price,
+    qty:parseInt(document.getElementById('ep-qty').value)||0,
+    alert:parseInt(document.getElementById('ep-alert').value)||5,
+    barcode:document.getElementById('ep-barcode').value.trim()||products[idx].barcode
+  };
+  DB.set('products',products);
+  hideModal('edit-product-modal');
+  renderStockTable();
+  alert('✅ Product updated!');
+}
+
 // ==================== BARCODE ====================
 function populateBarcodeSelect() {
   const products=DB.get('products')||[];
@@ -1346,9 +1444,11 @@ function printBarcode() {
   if(!p) return;
   const s=DB.get('settings')||settings;
   const copies=parseInt(document.getElementById('bc-copies').value)||1;
+  const sizeMap={small:'150px',medium:'200px',large:'260px'};
+  const w=sizeMap[s.barcodeSize||'medium'];
   const win=window.open('','_blank','width=400,height=600');
   const sticker=`<div class="sticker"><div class="shopname">${s.shopName||'StylePOS'}</div><div class="pname">${p.name}</div><div class="pdetails">Size: ${p.size||'-'} | Color: ${p.color||'-'}</div><div class="pcat">${p.cat||''}</div><svg class="bc"></svg><div class="pprice">Rs. ${p.price}</div></div>`;
-  win.document.write(`<html><head><style>body{font-family:monospace;margin:0;padding:10px;} .sticker{display:inline-block;border:1px dashed #999;padding:8px;margin:4px;text-align:center;width:200px;vertical-align:top;} .shopname{font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:3px;margin-bottom:4px;} .pname{font-size:11px;font-weight:bold;margin-bottom:2px;word-break:break-word;} .pdetails{font-size:10px;color:#333;margin-bottom:2px;} .pcat{font-size:10px;color:#666;margin-bottom:4px;} .pprice{font-size:14px;font-weight:bold;margin-top:4px;} @media print{body{margin:0;}}</style><script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"><\/script></head><body>${sticker.repeat(copies)}<script>document.querySelectorAll('.bc').forEach(el=>JsBarcode(el,'${p.barcode}',{width:1.5,height:40,displayValue:true,fontSize:10}));window.onload=()=>window.print();<\/script></body></html>`);
+  win.document.write(`<html><head><style>body{font-family:monospace;margin:0;padding:10px;} .sticker{display:inline-block;border:1px dashed #999;padding:8px;margin:4px;text-align:center;width:${w};vertical-align:top;} .shopname{font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:3px;margin-bottom:4px;} .pname{font-size:11px;font-weight:bold;margin-bottom:2px;word-break:break-word;} .pdetails{font-size:10px;color:#333;margin-bottom:2px;} .pcat{font-size:10px;color:#666;margin-bottom:4px;} .pprice{font-size:14px;font-weight:bold;margin-top:4px;} @media print{body{margin:0;}}</style><script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"><\/script></head><body>${sticker.repeat(copies)}<script>document.querySelectorAll('.bc').forEach(el=>JsBarcode(el,'${p.barcode}',{width:1.5,height:40,displayValue:true,fontSize:10}));window.onload=()=>window.print();<\/script></body></html>`);
   win.document.close();
 }
 
@@ -1534,7 +1634,7 @@ function exportReport() { alert('Export feature: In production, this would expor
 
 // ==================== CLOSE DAY ====================
 function closeDay() {
-  if(!confirm('Close today and send reports to owner via Email & WhatsApp?')) return;
+  if(!confirm('Close today and send report to owner via WhatsApp?')) return;
   const today=new Date().toISOString().split('T')[0];
   const sales=DB.get('sales')||[];
   const expenses=DB.get('expenses')||[];
@@ -1543,26 +1643,28 @@ function closeDay() {
   const revenue=todaySales.filter(x=>x.payment!=='credit').reduce((a,b)=>a+b.total,0);
   const credit=todaySales.filter(x=>x.payment==='credit').reduce((a,b)=>a+b.total,0);
   const todayExp=expenses.filter(e=>e.date===today).reduce((a,b)=>a+b.amount,0);
-  const report=`📊 *Daily Report — ${s.shopName||'StylePOS'}*\n📅 ${today}\n\n💰 Revenue: ${cur}${revenue.toLocaleString()}\n💳 Credit Sales: ${cur}${credit.toLocaleString()}\n💸 Expenses: ${cur}${todayExp.toLocaleString()}\n📈 Net: ${cur}${(revenue-todayExp).toLocaleString()}\n\n🧾 Total Bills: ${todaySales.length}\n✅ Cash: ${todaySales.filter(x=>x.payment==='cash').length}\n💳 Card: ${todaySales.filter(x=>x.payment==='card').length}\n⚠️ Credit: ${todaySales.filter(x=>x.payment==='credit').length}`;
-  // Send via WhatsApp to owner
-  if(s.waOwner) openWhatsApp(s.waOwner,report);
-  // Email link (mailto)
-  if(s.email) { window.open(`mailto:${s.email}?subject=Daily+Report+${today}&body=${encodeURIComponent(report.replace(/\*/g,''))}`); }
-  alert('✅ Day closed!\n📲 WhatsApp report opened.\n📧 Email client opened.\n\nGood night! 🌙');
+  const products=DB.get('products')||[];
+  const lowStock=products.filter(p=>p.qty<=p.alert);
+  const report=`📊 *Daily Report — ${s.shopName||'StylePOS'}*\n📅 ${today}\n\n💰 Revenue: ${cur}${revenue.toLocaleString()}\n💳 Credit Sales: ${cur}${credit.toLocaleString()}\n💸 Expenses: ${cur}${todayExp.toLocaleString()}\n📈 Net: ${cur}${(revenue-todayExp).toLocaleString()}\n\n🧾 Total Bills: ${todaySales.length}\n✅ Cash: ${todaySales.filter(x=>x.payment==='cash').length}\n💳 Card: ${todaySales.filter(x=>x.payment==='card').length}\n⚠️ Credit: ${todaySales.filter(x=>x.payment==='credit').length}${lowStock.length>0?'\n\n⚠️ Low Stock:\n'+lowStock.map(p=>`${p.name}: ${p.qty} left`).join('\n'):''}`;
+  if(s.waOwner) { openWhatsApp(s.waOwner,report); alert('✅ Day closed!\n📲 WhatsApp report opened.\n\nGood night! 🌙'); }
+  else { alert('⚠️ Set Owner WhatsApp in Settings first!\n\nReport:\n'+report.replace(/\*/g,'')); }
 }
 
 // ==================== SETTINGS ====================
 function loadSettings() {
   const s=DB.get('settings')||settings;
-  ['shopname','address','phone','taxno','points','currency','waowner','email','cashier-user','owner-pass','receipt-msg','receipt-footer'].forEach(k=>{
-    const el=document.getElementById('set-'+k);
-    const key=k.replace(/-([a-z])/g,(_,c)=>c.toUpperCase());
-    if(el&&s[key]!==undefined) el.value=s[key];
-  });
   if(document.getElementById('set-shopname')) document.getElementById('set-shopname').value=s.shopName||'';
+  if(document.getElementById('set-address')) document.getElementById('set-address').value=s.address||'';
+  if(document.getElementById('set-phone')) document.getElementById('set-phone').value=s.phone||'';
+  if(document.getElementById('set-taxno')) document.getElementById('set-taxno').value=s.taxNo||'';
   if(document.getElementById('set-points')) document.getElementById('set-points').value=s.pointsPer100||1;
+  if(document.getElementById('set-currency')) document.getElementById('set-currency').value=s.currency||'Rs.';
   if(document.getElementById('set-waowner')) document.getElementById('set-waowner').value=s.waOwner||'';
-  if(document.getElementById('set-email')) document.getElementById('set-email').value=s.email||'';
+  if(document.getElementById('set-wa-bill')) document.getElementById('set-wa-bill').value=s.waBill||'ask';
+  if(document.getElementById('set-thermal-size')) document.getElementById('set-thermal-size').value=s.thermalSize||'80';
+  if(document.getElementById('set-barcode-size')) document.getElementById('set-barcode-size').value=s.barcodeSize||'medium';
+  if(document.getElementById('set-receipt-msg')) document.getElementById('set-receipt-msg').value=s.receiptMsg||'';
+  if(document.getElementById('set-receipt-footer')) document.getElementById('set-receipt-footer').value=s.receiptFooter||'';
   if(document.getElementById('set-cashier-user')) document.getElementById('set-cashier-user').value=s.cashierUser||'cashier';
 }
 
@@ -1575,7 +1677,9 @@ function saveSettings() {
     pointsPer100:parseInt(document.getElementById('set-points')?.value||1),
     currency:document.getElementById('set-currency')?.value||'Rs.',
     waOwner:document.getElementById('set-waowner')?.value||'',
-    email:document.getElementById('set-email')?.value||'',
+    waBill:document.getElementById('set-wa-bill')?.value||'ask',
+    thermalSize:document.getElementById('set-thermal-size')?.value||'80',
+    barcodeSize:document.getElementById('set-barcode-size')?.value||'medium',
     cashierUser:document.getElementById('set-cashier-user')?.value||'cashier',
     cashierPass:document.getElementById('set-cashier-pass')?.value||'1234',
     ownerPass:document.getElementById('set-owner-pass')?.value||'admin123',
