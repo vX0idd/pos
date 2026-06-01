@@ -789,8 +789,30 @@ function renderBilling() {
   updateBillItems();
 }
 
+let searchTimer=null;
 function handleSearch() {
-  const v=document.getElementById('prod-search')?.value||'';
+  const v=document.getElementById('prod-search')?.value?.trim()||'';
+  if(!v){renderProdGrid('');return;}
+  const prods=DB.get('products')||[];
+  // Exact barcode match - auto add after tiny delay (allows scanner to finish)
+  const match=prods.find(p=>p.barcode===v||p.barcode.toLowerCase()===v.toLowerCase());
+  if(match){
+    clearTimeout(searchTimer);
+    searchTimer=setTimeout(()=>{
+      if(match.qty>0){
+        addToCart(match.id);
+        document.getElementById('prod-search').value='';
+        renderProdGrid('');
+        document.getElementById('prod-search').focus();
+      } else {
+        alert('❌ Out of stock: '+match.name);
+        document.getElementById('prod-search').value='';
+        renderProdGrid('');
+      }
+    },300);
+    return;
+  }
+  // No exact match - filter by name/partial barcode
   renderProdGrid(v);
 }
 
@@ -799,10 +821,10 @@ function handleSearchKey(e) {
     const v=document.getElementById('prod-search')?.value?.trim()||'';
     if(!v) return;
     const prods=DB.get('products')||[];
-    // Exact barcode match
     const match=prods.find(p=>p.barcode===v||p.barcode.toLowerCase()===v.toLowerCase());
-    if(match) {
-      if(match.qty>0) {
+    if(match){
+      clearTimeout(searchTimer);
+      if(match.qty>0){
         addToCart(match.id);
         document.getElementById('prod-search').value='';
         renderProdGrid('');
@@ -811,15 +833,6 @@ function handleSearchKey(e) {
         alert('❌ Out of stock: '+match.name);
         document.getElementById('prod-search').value='';
       }
-      return;
-    }
-    // Try partial barcode match
-    const partial=prods.find(p=>p.barcode.includes(v));
-    if(partial && partial.qty>0) {
-      addToCart(partial.id);
-      document.getElementById('prod-search').value='';
-      renderProdGrid('');
-      document.getElementById('prod-search').focus();
     }
   }
 }
