@@ -498,6 +498,36 @@ tr:hover td{background:var(--bg3);color:var(--text);}
   </div>
 </div>
 
+<div class="modal-overlay" id="exchange-modal">
+  <div class="modal">
+    <h3>🔄 Item Exchange</h3>
+    <div class="alert alert-info">Enter original bill number to process exchange.</div>
+    <div class="form-group">
+      <label>Original Bill Number</label>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="ex-billno" placeholder="BILL-001">
+        <button class="btn btn-primary btn-sm" onclick="loadExchangeBill()">Find</button>
+      </div>
+    </div>
+    <div id="ex-bill-info" style="margin-top:12px;"></div>
+    <div id="ex-return-section" style="display:none;">
+      <div class="form-group">
+        <label>Select Item to Return</label>
+        <select id="ex-return-item" style="margin-top:4px;"></select>
+      </div>
+      <div class="form-group">
+        <label>Return Qty</label>
+        <input type="number" id="ex-return-qty" value="1" min="1">
+      </div>
+      <div id="ex-summary" style="margin:12px 0;padding:12px;background:var(--bg3);border-radius:8px;font-size:13px;"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="hideModal('exchange-modal')">Cancel</button>
+      <button class="btn btn-primary" id="ex-confirm-btn" style="display:none;" onclick="confirmExchange()">✅ Process Exchange</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="credit-modal">
   <div class="modal">
     <h3>💳 Credit Customers</h3>
@@ -680,6 +710,12 @@ function buildNav() {
     el2.onclick=()=>openCreditModal();
     nav.appendChild(el2);
   }
+  // Exchange for both roles
+  const exel=document.createElement('div');
+  exel.className='nav-item';
+  exel.innerHTML='<span class="icon">🔄</span>Exchange';
+  exel.onclick=()=>{navigate('billing');setTimeout(()=>openExchange(),300);};
+  nav.appendChild(exel);
 }
 
 // ===================== NAVIGATE =====================
@@ -767,6 +803,7 @@ function renderBilling() {
           <div id="cust-dd" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;margin-top:4px;display:none;max-height:120px;overflow-y:auto;"></div>
           <div id="cust-info" style="margin-top:6px;"></div>
           <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="openExchange()">🔄 Exchange</button>
             <button class="btn btn-ghost btn-sm" id="credit-btn" onclick="toggleCredit()" style="background:rgba(251,191,36,0.1);color:var(--amber);border-color:rgba(251,191,36,0.3);">💳 Credit</button>
           </div>
         </div>
@@ -1404,6 +1441,88 @@ function sendOffers() {
   targets.forEach(c=>openWA(c.phone,msg));
   hideModal('offer-modal');
   alert(`✅ Sent to ${targets.length} customer(s)`);
+}
+
+// ===================== EXCHANGE =====================
+function openExchange() {
+  document.getElementById('ex-billno').value='';
+  document.getElementById('ex-bill-info').innerHTML='';
+  document.getElementById('ex-return-section').style.display='none';
+  document.getElementById('ex-confirm-btn').style.display='none';
+  document.getElementById('ex-summary').innerHTML='';
+  showModal('exchange-modal');
+}
+
+function loadExchangeBill() {
+  const billno=document.getElementById('ex-billno').value.trim().toUpperCase();
+  if(!billno){alert('Enter bill number');return;}
+  const sales=DB.get('sales')||[];
+  const bill=sales.find(s=>s.id===billno||s.id.toUpperCase()===billno);
+  if(!bill){
+    document.getElementById('ex-bill-info').innerHTML='<div class="alert alert-warning">❌ Bill not found!</div>';
+    document.getElementById('ex-return-section').style.display='none';
+    document.getElementById('ex-confirm-btn').style.display='none';
+    return;
+  }
+  const cur=CFG.currency||'Rs.';
+  document.getElementById('ex-bill-info').innerHTML=`
+    <div class="alert alert-success">
+      ✅ Bill found: <strong>${bill.id}</strong><br>
+      Customer: ${bill.customer} | Date: ${bill.date}<br>
+      Total: ${cur}${bill.total.toLocaleString()}
+    </div>`;
+  // Populate return items
+  const sel=document.getElementById('ex-return-item');
+  sel.innerHTML=bill.items.map((it,i)=>`<option value="${i}">${it.name} x${it.qty} @ ${cur}${it.price}</option>`).join('');
+  document.getElementById('ex-return-qty').value=1;
+  document.getElementById('ex-return-section').style.display='block';
+  document.getElementById('ex-confirm-btn').style.display='inline-flex';
+  updateExchangeSummary(bill);
+  sel.onchange=()=>updateExchangeSummary(bill);
+  document.getElementById('ex-return-qty').oninput=()=>updateExchangeSummary(bill);
+}
+
+function updateExchangeSummary(bill) {
+  const cur=CFG.currency||'Rs.';
+  const idx=parseInt(document.getElementById('ex-return-item').value)||0;
+  const qty=parseInt(document.getElementById('ex-return-qty').value)||1;
+  const item=bill.items[idx];
+  if(!item) return;
+  const retQty=Math.min(qty,item.qty);
+  const retVal=retQty*item.price;
+  document.getElementById('ex-summary').innerHTML=`
+    <div style="color:var(--text2);">
+      <div>↩️ Returning: <strong>${item.name}</strong> x${retQty}</div>
+      <div>💰 Return value: <strong style="color:var(--green);">${cur}${retVal.toLocaleString()}</strong></div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text3);">After exchange, this credit will be added to the current bill.</div>
+    </div>`;
+}
+
+function confirmExchange() {
+  const billno=document.getElementById('ex-billno').value.trim().toUpperCase();
+  const sales=DB.get('sales')||[];
+  const billIdx=sales.findIndex(s=>s.id===billno||s.id.toUpperCase()===billno);
+  if(billIdx===-1){alert('Bill not found!');return;}
+  const bill=sales[billIdx];
+  const idx=parseInt(document.getElementById('ex-return-item').value)||0;
+  const qty=parseInt(document.getElementById('ex-return-qty').value)||1;
+  const item=bill.items[idx];
+  if(!item){alert('Select item');return;}
+  const retQty=Math.min(qty,item.qty);
+  const retVal=retQty*item.price;
+  // Return stock
+  const prods=DB.get('products')||[];
+  const prod=prods.find(p=>p.name===item.name);
+  if(prod){prod.qty+=retQty;DB.set('products',prods);}
+  // Mark original bill as exchanged
+  sales[billIdx].status='exchanged';
+  sales[billIdx].exchangeNote=`Returned ${retQty}x ${item.name}`;
+  DB.set('sales',sales);
+  // Add exchange credit to cart as negative price item
+  cart.push({id:'EX'+Date.now(),name:'↩️ Exchange: '+item.name+' x'+retQty,price:-item.price,qty:retQty,max:retQty,isExchange:true});
+  hideModal('exchange-modal');
+  updateBillItems();
+  alert(`✅ Exchange processed!\n↩️ ${retQty}x ${item.name} returned to stock\n💰 ${CFG.currency||'Rs.'}${retVal.toLocaleString()} credit added to bill`);
 }
 
 // ===================== HELPERS =====================
