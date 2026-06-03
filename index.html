@@ -638,6 +638,11 @@ function selectRole(r) {
   selectedRole=r;
   document.getElementById('role-owner').classList.toggle('selected',r==='owner');
   document.getElementById('role-cashier').classList.toggle('selected',r==='cashier');
+  const uField=document.getElementById('login-user');
+  const pField=document.getElementById('login-pass');
+  if(r==='owner'){uField.value='admin';} else {uField.value=CFG.cashierUser||'cashier';}
+  pField.value='';
+  pField.focus();
 }
 
 async function doLogin() {
@@ -645,8 +650,11 @@ async function doLogin() {
   const p=document.getElementById('login-pass').value;
   CFG=DB.get('settings')||CFG;
   let ok=false, role='';
-  if((u==='admin'||u==='owner')&&p===CFG.ownerPass){ok=true;role='owner';}
-  else if(u===CFG.cashierUser&&p===CFG.cashierPass){ok=true;role='cashier';}
+  if(selectedRole==='owner'){
+    if(p===CFG.ownerPass){ok=true;role='owner';}
+  } else {
+    if(u===CFG.cashierUser&&p===CFG.cashierPass){ok=true;role='cashier';}
+  }
   if(!ok){alert('❌ Invalid credentials');return;}
   currentRole=role; currentUser=u;
   document.getElementById('login-screen').style.display='none';
