@@ -155,6 +155,7 @@ tr:hover td{background:var(--bg3);color:var(--text);}
     <div class="form-group"><label>Username</label><input type="text" id="login-user" placeholder="Username"></div>
     <div class="form-group"><label>Password</label><input type="password" id="login-pass" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;" onclick="doLogin()">🔐 Sign In</button>
+    <p style="text-align:center;margin-top:12px;font-size:11px;color:var(--text3)">Owner pw: <b>admin123</b> &nbsp;|&nbsp; Cashier: <b>cashier</b> / <b>cashier123</b></p>
   </div>
 </div>
 
@@ -608,6 +609,15 @@ let CFG = DB.get('settings') || {
 
 // ===================== INIT DATA =====================
 function initData() {
+  // Fix any old saved settings that had wrong passwords
+  const s=DB.get('settings');
+  if(s){
+    let changed=false;
+    if(!s.ownerPass){s.ownerPass='admin123';changed=true;}
+    if(!s.cashierPass){s.cashierPass='cashier123';changed=true;}
+    if(!s.cashierUser){s.cashierUser='cashier';changed=true;}
+    if(changed){localStorage.setItem('stylepos_settings',JSON.stringify(s));CFG=s;}
+  }
   if(!DB.get('products')) {
     DB.set('products',[
       {id:'P001',name:'White Oxford Shirt',cat:'SHIRT',size:'M',color:'White',cost:800,price:1800,qty:25,alert:5,barcode:'STY001'},
@@ -638,24 +648,30 @@ function selectRole(r) {
   selectedRole=r;
   document.getElementById('role-owner').classList.toggle('selected',r==='owner');
   document.getElementById('role-cashier').classList.toggle('selected',r==='cashier');
-  const uField=document.getElementById('login-user');
-  const pField=document.getElementById('login-pass');
-  if(r==='owner'){uField.value='admin';} else {uField.value=CFG.cashierUser||'cashier';}
-  pField.value='';
-  pField.focus();
+  document.getElementById('login-user').value='';
+  document.getElementById('login-pass').value='';
+  document.getElementById('login-pass').focus();
 }
 
 async function doLogin() {
   const u=document.getElementById('login-user').value.trim();
   const p=document.getElementById('login-pass').value;
-  CFG=DB.get('settings')||CFG;
+  // Always reload CFG fresh from localStorage
+  const saved=DB.get('settings');
+  if(saved) CFG=saved;
   let ok=false, role='';
   if(selectedRole==='owner'){
-    if(p===CFG.ownerPass){ok=true;role='owner';}
+    // Owner: password only (username ignored)
+    if(p && p===CFG.ownerPass){ok=true;role='owner';}
   } else {
-    if(u===CFG.cashierUser&&p===CFG.cashierPass){ok=true;role='cashier';}
+    // Cashier: must match username AND password
+    if(u && p && u===CFG.cashierUser && p===CFG.cashierPass){ok=true;role='cashier';}
   }
-  if(!ok){alert('❌ Invalid credentials');return;}
+  if(!ok){
+    if(selectedRole==='owner') alert('❌ Wrong owner password!');
+    else alert('❌ Wrong cashier username or password!');
+    return;
+  }
   currentRole=role; currentUser=u;
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='flex';
