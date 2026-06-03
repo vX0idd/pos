@@ -212,7 +212,7 @@ tr:hover td{background:var(--bg3);color:var(--text);}
     <div class="section-card">
       <h3>📋 Today's Bills</h3>
       <div class="table-wrap">
-        <table><thead><tr><th>Bill#</th><th>Customer</th><th>Items</th><th>Amount</th><th>Payment</th><th>Time</th><th>Status</th></tr></thead>
+        <table><thead><tr><th>Bill#</th><th>Customer</th><th>Items</th><th>Amount</th><th>Payment</th><th>Time</th><th>Status</th><th>Action</th></tr></thead>
         <tbody id="today-sales-table"></tbody></table>
       </div>
     </div>
@@ -309,7 +309,7 @@ tr:hover td{background:var(--bg3);color:var(--text);}
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <input type="date" id="rep-from" style="width:150px;">
         <input type="date" id="rep-to" style="width:150px;">
-        <button class="btn btn-primary" onclick="renderReports(repType)">📊 Generate</button>
+        <button class="btn btn-primary" onclick="renderReports(repType||'daily')">📊 Generate</button>
       </div>
     </div>
     <div class="tabs">
@@ -762,8 +762,8 @@ function renderDashboard() {
   const lsEl=document.getElementById('low-stock-alerts');
   lsEl.innerHTML=low.length===0?'<div style="color:var(--green);font-size:13px;">✅ All stock OK</div>':low.slice(0,4).map(p=>`<div class="alert alert-warning" style="padding:8px 12px;margin-bottom:6px;">⚠️ ${p.name} — ${p.qty} left</div>`).join('');
   const tbody=document.getElementById('today-sales-table');
-  tbody.innerHTML=ts.length===0?'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px;">No sales today</td></tr>':
-    ts.map(s=>`<tr><td class="mono">${s.id}</td><td>${s.customer}</td><td>${s.items.length}</td><td style="color:var(--accent2);font-weight:600">${cur}${s.total.toLocaleString()}</td><td><span class="badge badge-${s.payment==='cash'?'green':s.payment==='card'?'blue':'amber'}">${s.payment.toUpperCase()}</span></td><td>${s.time}</td><td><span class="badge badge-${s.status==='paid'?'green':'amber'}">${s.status}</span></td></tr>`).join('');
+  tbody.innerHTML=ts.length===0?'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px;">No sales today</td></tr>':
+    ts.map(s=>`<tr><td class="mono">${s.id}</td><td>${s.customer}</td><td>${s.items.length}</td><td style="color:var(--accent2);font-weight:600">${cur}${s.total.toLocaleString()}</td><td><span class="badge badge-${s.payment==='cash'?'green':s.payment==='card'?'blue':'amber'}">${s.payment.toUpperCase()}</span></td><td>${s.time}</td><td><span class="badge badge-${s.status==='paid'?'green':'amber'}">${s.status}</span></td><td>${currentRole==='owner'?`<button class="btn btn-danger btn-sm" onclick="deleteSale('${s.id}')" style="padding:4px 8px;font-size:11px;">Del</button>`:''}</td></tr>`).join('');
 }
 
 // ===================== BILLING =====================
@@ -1324,6 +1324,7 @@ function addPurchase() {
 function switchRep(type,el){repType=type;document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));if(el)el.classList.add('active');renderReports(type);}
 
 function renderReports(type) {
+  type=type||repType||'daily';
   const sales=DB.get('sales')||[];
   const cur=CFG.currency||'Rs.';
   const from=document.getElementById('rep-from')?.value||new Date().toISOString().split('T')[0];
@@ -1368,6 +1369,29 @@ function renderReports(type) {
       ${Object.entries(cd).sort((a,b)=>b[1].total-a[1].total).map(([k,v])=>`<tr><td>${k}</td><td>${v.bills}</td><td style="color:var(--accent2);font-weight:600;">${cur}${v.total.toLocaleString()}</td></tr>`).join('')||'<tr><td colspan="3" style="text-align:center;color:var(--text3);">No data</td></tr>'}
     </tbody></table></div>`;
   }
+}
+
+// ===================== DELETE SALE =====================
+function deleteSale(id) {
+  if(currentRole!=='owner'){alert('Only owner can delete sales!');return;}
+  const sales=DB.get('sales')||[];
+  const sale=sales.find(s=>s.id===id);
+  if(!sale){alert('Sale not found!');return;}
+  if(!confirm('Delete '+sale.id+' ('+sale.customer+' — '+( CFG.currency||'Rs.')+sale.total.toLocaleString()+')?\n\nStock will be restored.')) return;
+  // Restore stock
+  const prods=DB.get('products')||[];
+  sale.items.forEach(it=>{const p=prods.find(x=>x.name===it.name);if(p)p.qty+=it.qty;});
+  DB.set('products',prods);
+  // Restore customer credit if credit sale
+  if(sale.customerId && sale.payment==='credit'){
+    const custs=DB.get('customers')||[];
+    const cu=custs.find(c=>c.id===sale.customerId);
+    if(cu){cu.credit=Math.max(0,cu.credit-sale.total);cu.spent=Math.max(0,cu.spent-sale.total);}
+    DB.set('customers',custs);
+  }
+  DB.set('sales',sales.filter(s=>s.id!==id));
+  renderDashboard();
+  alert('✅ Sale deleted & stock restored!');
 }
 
 // ===================== CLOSE DAY =====================
