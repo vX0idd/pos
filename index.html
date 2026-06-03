@@ -152,9 +152,10 @@ tr:hover td{background:var(--bg3);color:var(--text);}
       <div class="role-card selected" id="role-owner" onclick="selectRole('owner')"><div class="ri">👑</div><p>Owner</p></div>
       <div class="role-card" id="role-cashier" onclick="selectRole('cashier')"><div class="ri">💰</div><p>Cashier</p></div>
     </div>
-    <div class="form-group"><label>Username</label><input type="text" id="login-user" placeholder="Enter username" autocomplete="off"></div>
-    <div class="form-group"><label>Password</label><input type="password" id="login-pass" placeholder="Enter password" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div class="form-group"><label>Username</label><input type="text" id="login-user" value="admin"></div>
+    <div class="form-group"><label>Password</label><input type="password" id="login-pass" value="1234" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;" onclick="doLogin()">🔐 Sign In</button>
+    <p style="text-align:center;margin-top:12px;font-size:12px;color:var(--text3)">admin / 1234</p>
   </div>
 </div>
 
@@ -197,12 +198,7 @@ tr:hover td{background:var(--bg3);color:var(--text);}
       </div>
       <div class="section-card">
         <h3>⚡ Quick Actions</h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <button class="btn btn-primary" onclick="navigate('billing')" style="justify-content:center;">🧾 New Bill</button>
-          ${currentRole==='owner'?`<button class="btn btn-ghost" onclick="navigate('stock')" style="justify-content:center;">📦 Stock</button>
-          <button class="btn btn-ghost" onclick="navigate('customers')" style="justify-content:center;">👤 Customers</button>`:''}
-          <button class="btn btn-ghost" onclick="navigate('expenses')" style="justify-content:center;">💸 Expense</button>
-        </div>
+        <div id="quick-actions-btns" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div>
         <div style="margin-top:16px;">
           <h4 style="font-size:13px;color:var(--text3);margin-bottom:10px;">⚠️ Low Stock</h4>
           <div id="low-stock-alerts"></div>
@@ -662,7 +658,7 @@ async function doLogin() {
   document.getElementById('user-role-display').textContent=role.charAt(0).toUpperCase()+role.slice(1);
   document.getElementById('shop-name-display').textContent=CFG.shopName||'StylePOS';
   buildNav();
-  navigate(role==='cashier'?'billing':'dashboard');
+  navigate('dashboard');
   await DB.pull();
   CFG=DB.get('settings')||CFG;
   renderDashboard();
@@ -676,11 +672,11 @@ function logout(){
 
 // ===================== NAV =====================
 const NAV_ITEMS=[
-  {id:'dashboard',icon:'📊',label:'Dashboard',owner:false},
+  {id:'dashboard',icon:'📊',label:'Dashboard',owner:true},
   {id:'billing',icon:'🧾',label:'New Bill',owner:false},
   {id:'stock',icon:'📦',label:'Stock',owner:true},
   {id:'purchases',icon:'🛒',label:'Purchases',owner:true},
-  {id:'customers',icon:'👥',label:'Customers',owner:true},
+  {id:'customers',icon:'👥',label:'Customers',owner:false},
   {id:'expenses',icon:'💸',label:'Expenses',owner:false},
   {id:'reports',icon:'📈',label:'Reports',owner:true},
   {id:'settings',icon:'⚙️',label:'Settings',owner:true},
@@ -718,9 +714,7 @@ function buildNav() {
 }
 
 // ===================== NAVIGATE =====================
-const OWNER_ONLY_PAGES=['stock','purchases','customers','reports','settings'];
 function navigate(page) {
-  if(currentRole==='cashier'&&OWNER_ONLY_PAGES.includes(page)){alert('⛔ Access denied. Owner only.');return;}
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   const pg=document.getElementById('page-'+page);
@@ -765,6 +759,21 @@ function renderDashboard() {
   const tbody=document.getElementById('today-sales-table');
   tbody.innerHTML=ts.length===0?'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px;">No sales today</td></tr>':
     ts.map(s=>`<tr><td class="mono">${s.id}</td><td>${s.customer}</td><td>${s.items.length}</td><td style="color:var(--accent2);font-weight:600">${cur}${s.total.toLocaleString()}</td><td><span class="badge badge-${s.payment==='cash'?'green':s.payment==='card'?'blue':'amber'}">${s.payment.toUpperCase()}</span></td><td>${s.time}</td><td><span class="badge badge-${s.status==='paid'?'green':'amber'}">${s.status}</span></td></tr>`).join('');
+  // Render quick action buttons based on role
+  const qa=document.getElementById('quick-actions-btns');
+  if(qa){
+    if(currentRole==='owner'){
+      qa.innerHTML=`
+        <button class="btn btn-primary" onclick="navigate('billing')" style="justify-content:center;">🧾 New Bill</button>
+        <button class="btn btn-ghost" onclick="navigate('stock')" style="justify-content:center;">📦 Stock</button>
+        <button class="btn btn-ghost" onclick="navigate('customers')" style="justify-content:center;">👤 Customers</button>
+        <button class="btn btn-ghost" onclick="navigate('expenses')" style="justify-content:center;">💸 Expense</button>`;
+    } else {
+      qa.innerHTML=`
+        <button class="btn btn-primary" onclick="navigate('billing')" style="justify-content:center;">🧾 New Bill</button>
+        <button class="btn btn-ghost" onclick="navigate('expenses')" style="justify-content:center;">💸 Expense</button>`;
+    }
+  }
 }
 
 // ===================== BILLING =====================
