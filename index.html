@@ -152,10 +152,9 @@ tr:hover td{background:var(--bg3);color:var(--text);}
       <div class="role-card selected" id="role-owner" onclick="selectRole('owner')"><div class="ri">👑</div><p>Owner</p></div>
       <div class="role-card" id="role-cashier" onclick="selectRole('cashier')"><div class="ri">💰</div><p>Cashier</p></div>
     </div>
-    <div class="form-group"><label>Username</label><input type="text" id="login-user" value="admin"></div>
-    <div class="form-group"><label>Password</label><input type="password" id="login-pass" value="1234" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div class="form-group"><label>Username</label><input type="text" id="login-user" placeholder="Enter username" autocomplete="off"></div>
+    <div class="form-group"><label>Password</label><input type="password" id="login-pass" placeholder="Enter password" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;" onclick="doLogin()">🔐 Sign In</button>
-    <p style="text-align:center;margin-top:12px;font-size:12px;color:var(--text3)">admin / 1234</p>
   </div>
 </div>
 
@@ -187,7 +186,7 @@ tr:hover td{background:var(--bg3);color:var(--text);}
   <div class="page active" id="page-dashboard">
     <div class="page-header">
       <div><h2>Dashboard</h2><p id="dash-date"></p></div>
-      <button class="btn btn-primary" onclick="closeDay()">🌙 Close Day</button>
+      <button class="btn btn-primary" onclick="closeDay()" id="close-day-btn">🌙 Close Day</button>
     </div>
     <div class="grid-4" style="margin-bottom:20px;" id="dash-stats"></div>
     <div class="grid-2" style="margin-bottom:20px;">
@@ -677,7 +676,7 @@ function logout(){
 
 // ===================== NAV =====================
 const NAV_ITEMS=[
-  {id:'dashboard',icon:'📊',label:'Dashboard',owner:true},
+  {id:'dashboard',icon:'📊',label:'Dashboard',owner:false},
   {id:'billing',icon:'🧾',label:'New Bill',owner:false},
   {id:'stock',icon:'📦',label:'Stock',owner:true},
   {id:'purchases',icon:'🛒',label:'Purchases',owner:true},
@@ -698,6 +697,7 @@ function buildNav() {
     el.onclick=()=>{navigate(item.id);document.getElementById('sidebar').classList.remove('open');};
     nav.appendChild(el);
   });
+
   if(currentRole==='owner'){
     const el=document.createElement('div');
     el.className='nav-item';
@@ -798,6 +798,7 @@ function renderBilling() {
           </div>
           <div style="display:flex;gap:8px;align-items:center;">
             <input type="text" id="cust-search-bill" placeholder="👤 Customer..." oninput="searchCust()" style="flex:1;font-size:13px;">
+            <button class="btn btn-primary btn-sm" onclick="openAddCustFromBill()" title="Add New Customer">➕</button>
             <button class="btn btn-ghost btn-sm" onclick="clearCust()">✕</button>
           </div>
           <div id="cust-dd" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;margin-top:4px;display:none;max-height:120px;overflow-y:auto;"></div>
@@ -1223,13 +1224,40 @@ function renderCustomers() {
     </tr>`).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px;">No customers</td></tr>';
 }
 
+let addCustFromBilling=false;
+
+function openAddCustFromBill() {
+  addCustFromBilling=true;
+  // Pre-fill name if something typed in search
+  const typed=document.getElementById('cust-search-bill')?.value?.trim()||'';
+  document.getElementById('cn-name').value=typed;
+  document.getElementById('cn-phone').value='';
+  document.getElementById('cn-email').value='';
+  document.getElementById('cn-bday').value='';
+  document.getElementById('cn-addr').value='';
+  showModal('add-cust-modal');
+  setTimeout(()=>document.getElementById(typed?'cn-phone':'cn-name').focus(),100);
+}
+
 function addCustomer() {
   const name=document.getElementById('cn-name').value.trim();
   const phone=document.getElementById('cn-phone').value.trim().replace(/[^0-9]/g,'');
   if(!name||!phone){alert('Name and phone required');return;}
-  DB.push('customers',{id:'C'+Date.now(),name,phone,email:document.getElementById('cn-email').value,bday:document.getElementById('cn-bday').value,address:document.getElementById('cn-addr').value,points:0,spent:0,credit:0,lastVisit:new Date().toISOString().split('T')[0]});
+  const newCust={id:'C'+Date.now(),name,phone,email:document.getElementById('cn-email').value,bday:document.getElementById('cn-bday').value,address:document.getElementById('cn-addr').value,points:0,spent:0,credit:0,lastVisit:new Date().toISOString().split('T')[0]};
+  DB.push('customers',newCust);
   hideModal('add-cust-modal');
-  renderCustomers();
+  if(addCustFromBilling) {
+    addCustFromBilling=false;
+    // Auto-select the newly added customer in billing
+    selectedCustomer=newCust;
+    const ci=document.getElementById('cust-search-bill');
+    if(ci) ci.value=newCust.name;
+    const cur=CFG.currency||'Rs.';
+    document.getElementById('cust-info').innerHTML=`<div class="alert alert-success" style="padding:6px 10px;margin-top:4px;font-size:12px;">✅ ${newCust.name} added & selected! | 🏆 0 pts</div>`;
+    updateTotals();
+  } else {
+    renderCustomers();
+  }
 }
 
 function delCust(id){if(!confirm('Delete?'))return;DB.set('customers',(DB.get('customers')||[]).filter(c=>c.id!==id));renderCustomers();}
