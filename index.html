@@ -152,7 +152,7 @@ tr:hover td{background:var(--bg3);color:var(--text);}
       <div class="role-card selected" id="role-owner" onclick="selectRole('owner')"><div class="ri">👑</div><p>Owner</p></div>
       <div class="role-card" id="role-cashier" onclick="selectRole('cashier')"><div class="ri">💰</div><p>Cashier</p></div>
     </div>
-    <div class="form-group"><label>Username</label><input type="text" id="login-user" placeholder="Username"></div>
+    <div class="form-group" id="login-user-group" style="display:none;"><label>Username</label><input type="text" id="login-user" placeholder="Username"></div>
     <div class="form-group"><label>Password</label><input type="password" id="login-pass" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;" onclick="doLogin()">🔐 Sign In</button>
     <p style="text-align:center;margin-top:12px;font-size:11px;color:var(--text3)">Owner pw: <b>admin123</b> &nbsp;|&nbsp; Cashier: <b>cashier</b> / <b>cashier123</b></p>
@@ -645,44 +645,55 @@ function initData() {
 
 // ===================== AUTH =====================
 function selectRole(r) {
-  selectedRole=r;
-  document.getElementById('role-owner').classList.toggle('selected',r==='owner');
-  document.getElementById('role-cashier').classList.toggle('selected',r==='cashier');
-  document.getElementById('login-user').value='';
-  document.getElementById('login-pass').value='';
+  const s=DB.get("settings"); if(s) CFG=s;
+  selectedRole = r;
+  document.getElementById('role-owner').classList.toggle('selected', r==='owner');
+  document.getElementById('role-cashier').classList.toggle('selected', r==='cashier');
+  // Show/hide username field - owner does not need username
+  document.getElementById('login-user-group').style.display = r==='owner' ? 'none' : 'block';
+  document.getElementById('login-user').value = r==='cashier' ? (CFG.cashierUser||'cashier') : '';
+  document.getElementById('login-pass').value = '';
   document.getElementById('login-pass').focus();
 }
 
 async function doLogin() {
-  const u=document.getElementById('login-user').value.trim();
-  const p=document.getElementById('login-pass').value;
-  // Always reload CFG fresh from localStorage
-  const saved=DB.get('settings');
-  if(saved) CFG=saved;
-  let ok=false, role='';
-  if(selectedRole==='owner'){
-    // Owner: password only (username ignored)
-    if(p && p===CFG.ownerPass){ok=true;role='owner';}
+  // Always get latest settings
+  const saved = DB.get('settings');
+  if (saved) CFG = saved;
+
+  const u = (document.getElementById('login-user').value || '').trim();
+  const p = (document.getElementById('login-pass').value || '').trim();
+
+  if (!p) { alert('Enter password'); return; }
+
+  let ok = false, role = '';
+
+  if (selectedRole === 'owner') {
+    const ownerPw = CFG.ownerPass || 'admin123';
+    if (p === ownerPw) { ok = true; role = 'owner'; }
+    else { alert('❌ Wrong password!
+Default: admin123'); return; }
   } else {
-    // Cashier: must match username AND password
-    if(u && p && u===CFG.cashierUser && p===CFG.cashierPass){ok=true;role='cashier';}
+    const cUser = CFG.cashierUser || 'cashier';
+    const cPass = CFG.cashierPass || 'cashier123';
+    if (u === cUser && p === cPass) { ok = true; role = 'cashier'; }
+    else { alert('❌ Wrong username or password!
+Default: cashier / cashier123'); return; }
   }
-  if(!ok){
-    if(selectedRole==='owner') alert('❌ Wrong owner password!');
-    else alert('❌ Wrong cashier username or password!');
-    return;
-  }
-  currentRole=role; currentUser=u;
-  document.getElementById('login-screen').style.display='none';
-  document.getElementById('app').style.display='flex';
-  document.getElementById('user-avatar').textContent=u.substring(0,2).toUpperCase();
-  document.getElementById('user-name-display').textContent=u.charAt(0).toUpperCase()+u.slice(1);
-  document.getElementById('user-role-display').textContent=role.charAt(0).toUpperCase()+role.slice(1);
-  document.getElementById('shop-name-display').textContent=CFG.shopName||'StylePOS';
+
+  const displayName = role === 'owner' ? 'Admin' : u;
+  currentRole = role;
+  currentUser = displayName;
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('user-avatar').textContent = displayName.substring(0,2).toUpperCase();
+  document.getElementById('user-name-display').textContent = displayName;
+  document.getElementById('user-role-display').textContent = role.charAt(0).toUpperCase()+role.slice(1);
+  document.getElementById('shop-name-display').textContent = CFG.shopName || 'StylePOS';
   buildNav();
   navigate('dashboard');
   await DB.pull();
-  CFG=DB.get('settings')||CFG;
+  CFG = DB.get('settings') || CFG;
   renderDashboard();
 }
 
